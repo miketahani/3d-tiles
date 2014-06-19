@@ -1,0 +1,134 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset='utf-8'>
+    <style>
+
+      body,
+      svg {
+        margin: 0;
+        padding: 0;
+      }
+
+    </style>
+  </head>
+  <body>
+
+
+    <script src='js/vendor/three.r67.js'></script>
+    <script src='js/vendor/d3.v2.js'></script>
+    <script>
+
+      /*
+        just a hacky proof-of-concept
+
+        inspired by the awesome team at mapzen and their vector map: http://vector.io/vector-map/
+      */
+
+      var scene = new THREE.Scene();
+      var camera = new THREE.PerspectiveCamera(45, window.innerWidth/window.innerHeight, 0.1, 10000);
+      
+      var renderer = new THREE.WebGLRenderer();
+      renderer.setSize(window.innerWidth, window.innerHeight);
+      document.body.appendChild(renderer.domElement);
+      
+      
+      camera.position.set(50, 50, 300);
+
+
+      var render = function () {
+        requestAnimationFrame(render);
+
+        //
+
+        renderer.render(scene, camera);
+      };
+      
+      render();
+
+
+      var data,
+          w = window.innerWidth,
+          h = window.innerHeight;
+
+      var tile = new THREE.Object3D();
+      scene.add(tile);
+
+      d3.json('assets/tile.json', function(err, tileGeojson) {
+
+        data = tileGeojson;
+
+        // XXX FIX mercator grid so i'm being lazy, should be projected, not 1:1
+        // var d3.extent(tileGeojson.features.map(function(d) { return d.properties. }))
+
+        var xCoords = [],
+            yCoords = [],
+            heights = [];
+
+        tileGeojson.features.forEach(function(feature) {
+
+          var coordinates = feature.geometry.coordinates[0];
+          coordinates.forEach(function(c) { 
+            xCoords.push(c[0]);
+            yCoords.push(c[1]);
+          });
+
+          if (!feature.properties.height) return;
+
+          heights.push(feature.properties.height);
+
+        });
+
+
+        var x = d3.scale.linear().domain(d3.extent(xCoords)).range([0, 100]),
+            y = d3.scale.linear().domain(d3.extent(yCoords)).range([0, 100]),
+            hue = d3.scale.linear().domain(d3.extent(heights)).range([0, 360]);
+
+        tileGeojson.features.forEach(function(feature) {
+
+          var height = feature.properties.height || 0;
+
+          // XXX geojson polygon outer ring
+          var coordinates = feature.geometry.coordinates[0].map(function(d) {
+            return new THREE.Vector2(x(d[0]), y(d[1]));
+          });
+
+          var shape = new THREE.Shape(coordinates);
+
+          
+          // console.log(shape, coordinates);
+
+
+          var extrudeSettings = {
+            amount: height,
+            steps: 1,
+            bevelEnabled: false
+          };
+
+          var color = new THREE.Color().setHSL(hue(height)/360, 1.0, 0.7);
+
+          var geometry = new THREE.ExtrudeGeometry(shape, extrudeSettings),
+              material = new THREE.MeshBasicMaterial({
+                color: color,
+                // wireframe: true
+              });
+
+          var building = new THREE.Mesh(geometry, material);
+
+          tile.add(building);
+
+        });
+        
+
+        // window.addEventListener('mousemove', function(e) {
+        //   tile.rotation.z = e.x/w;
+        //   tile.rotation.y = e.y/h;
+        // });
+
+      });
+
+
+    </script>
+
+  </body>
+</html>
